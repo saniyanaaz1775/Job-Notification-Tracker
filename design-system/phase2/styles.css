@@ -63,3 +63,49 @@
 .digest-output .digest-card { max-width:720px; margin:0 auto; background:#fff; border:1px solid rgba(17,17,17,0.06); border-radius:8px; padding:24px; }
 .digest-output h2 { font-family:var(--font-heading); margin:0 0 8px 0; }
 .digest-output .empty-card { max-width:720px; margin:0 auto; }
+/* Status group + toast styling (premium, subtle) */
+.status-group { margin-top: 12px; display:flex; flex-direction:column; gap:8px; }
+.status-label { font-size:13px; color:rgba(17,17,17,0.75); font-weight:600; }
+.status-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+.status-btn {
+  padding:6px 10px;
+  border-radius:8px;
+  border:1px solid rgba(17,17,17,0.06);
+  background:transparent;
+  cursor:pointer;
+  font-size:13px;
+}
+.status-btn.active { background: rgba(139,0,0,0.06); border-color: rgba(139,0,0,0.08); color: var(--color-text); }
+
+/* status badges color rules */
+.status-badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:13px; }
+.status-neutral { background: rgba(17,17,17,0.03); color: var(--color-text); border:1px solid rgba(17,17,17,0.06); }
+.status-applied { background: rgba(59,130,246,0.12); color:#0366d6; border:1px solid rgba(59,130,246,0.18); } /* blue */
+.status-rejected { background: rgba(139,0,0,0.06); color: #8B0000; border:1px solid rgba(139,0,0,0.12); } /* red */
+.status-selected { background: rgba(34,197,94,0.08); color: #15803d; border:1px solid rgba(34,197,94,0.12); } /* green */
+
+/* toast */
+.jnt-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  background: white;
+  color: var(--color-text);
+  border: 1px solid rgba(17,17,17,0.06);
+  padding: 10px 14px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: transform 180ms var(--easing), opacity 180ms var(--easing);
+  z-index: 9999;
+  box-shadow: none;
+}
+.jnt-toast.visible { opacity: 1; transform: translateY(0); }
+
+/* ensure badge placement doesn't break layout */
+.job-head .status-badge { margin-left: 12px; }
+/* JT Test Checklist styling */
+.jt-summary { max-width:720px; margin: 0 auto 16px; }
+.jt-checklist { list-style:none; padding:0; margin:0; max-width:720px; }
+.jt-item { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid rgba(17,17,17,0.04); border-radius:8px; margin-bottom:8px; background:transparent; }
+.jt-item label { font-size:15px; font-family:var(--font-body); color:var(--color-text); cursor:pointer; }

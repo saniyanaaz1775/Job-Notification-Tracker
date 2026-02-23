@@ -720,3 +720,342 @@ function renderDigestSection(container) {
 /* To integrate: call renderDigestSection(container) from your /digest page renderer,
    for example inside pageDigest() after the basic header/subtext have been appended.
 */
+/* Persisted Job Status & Notification Templates
+   Keys:
+   - jobTrackerStatus => object map { jobId: statusString }
+   - jobTrackerStatusLog => array [{ jobId, status, dateISO }]
+*/
+
+const STATUS_KEY = 'jobTrackerStatus';
+const STATUS_LOG_KEY = 'jobTrackerStatusLog';
+const ALL_STATUSES = ['Not Applied','Applied','Rejected','Selected'];
+
+function loadAllStatuses() {
+  try { return JSON.parse(localStorage.getItem(STATUS_KEY)) || {}; } catch { return {}; }
+}
+function saveAllStatuses(map) {
+  localStorage.setItem(STATUS_KEY, JSON.stringify(map));
+}
+function getStatus(jobId) {
+  const map = loadAllStatuses();
+  return map[jobId] || 'Not Applied';
+}
+function recordStatusChange(jobId, status) {
+  // update map
+  const map = loadAllStatuses();
+  map[jobId] = status;
+  saveAllStatuses(map);
+
+  // append log
+  try {
+    const log = JSON.parse(localStorage.getItem(STATUS_LOG_KEY)) || [];
+    log.unshift({ jobId, status, date: new Date().toISOString() });
+    // keep last 200 entries to avoid growth
+    localStorage.setItem(STATUS_LOG_KEY, JSON.stringify(log.slice(0,200)));
+  } catch (e) { /* noop safe */ }
+
+  // toast
+  showToast(`Status updated: ${status}`);
+}
+
+/* Toast (non-blocking, auto-dismiss) */
+function showToast(text, ms = 3000) {
+  const t = document.createElement('div');
+  t.className = 'jnt-toast';
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(()=> t.classList.add('visible'), 20);
+  setTimeout(()=> { t.classList.remove('visible'); setTimeout(()=> t.remove(), 220); }, ms);
+}
+
+/* Update card UI for badge color and label */
+function updateStatusBadgeOnCard(cardEl, jobId) {
+  const status = getStatus(jobId);
+  let badge = cardEl.querySelector('.status-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'status-badge';
+    // place top-right if job-head exists
+    const head = cardEl.querySelector('.job-head') || cardEl;
+    head.appendChild(badge);
+  }
+  badge.textContent = status;
+  badge.className = 'status-badge ' + statusBadgeClass(status);
+}
+
+/* Badge class mapping */
+function statusBadgeClass(status) {
+  switch (status) {
+    case 'Applied': return 'status-applied';   // blue
+    case 'Rejected': return 'status-rejected'; // red
+    case 'Selected': return 'status-selected'; // green
+    default: return 'status-neutral';          // neutral
+  }
+}
+
+/* Render a compact button group for status on a job card.
+   Call this after creating the card element; it wires events and updates localStorage.
+*/
+function renderStatusGroup(job, cardEl) {
+  // container
+  const container = document.createElement('div');
+  container.className = 'status-group';
+  // label
+  const label = document.createElement('div');
+  label.className = 'status-label';
+  label.textContent = 'Status';
+  container.appendChild(label);
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'status-buttons';
+  ALL_STATUSES.forEach(st => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'status-btn';
+    b.textContent = st;
+    if (getStatus(job.id) === st) b.classList.add('active');
+    b.addEventListener('click', () => {
+      // idempotent: changing to same state still records timestamp per spec
+      recordStatusChange(job.id, st);
+      // refresh button active state
+      btnRow.querySelectorAll('.status-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      // update badge on card
+      updateStatusBadgeOnCard(cardEl, job.id);
+    });
+    btnRow.appendChild(b);
+  });
+  container.appendChild(btnRow);
+
+  // append to card actions area if exists, otherwise bottom
+  const actions = cardEl.querySelector('.job-actions');
+  if (actions) actions.parentNode.insertBefore(container, actions.nextSibling);
+  else cardEl.appendChild(container);
+
+  // ensure badge exists
+  updateStatusBadgeOnCard(cardEl, job.id);
+}
+
+/* Status filter integration
+   In your filterState, add filterState.status = 'All'
+   When building filterBar, include an additional select for status:
+*/
+function makeStatusFilterControl(currentValue, onChange) {
+  const select = document.createElement('select');
+  select.className = 'select';
+  ['All', ...ALL_STATUSES].forEach(s => select.appendChild(new Option(s, s)));
+  select.value = currentValue || 'All';
+  select.addEventListener('change', ()=> onChange(select.value));
+  return select;
+}
+
+/* Modify your filterJobs(list, filterState) to include status AND logic:
+   (assuming you have existing checks) Add:
+
+if (filterState.status && filterState.status !== 'All') {
+  const st = filterState.status;
+  if ((getStatus(job.id) || 'Not Applied') !== st) return false;
+}
+
+   This ensures status filter combines with all other filters using AND.
+*/
+
+/* Recent Status Updates for Digest page:
+   Call renderRecentStatusUpdates(container) inside your /digest page renderer.
+*/
+function renderRecentStatusUpdates(container) {
+  const raw = JSON.parse(localStorage.getItem(STATUS_LOG_KEY) || '[]');
+  const prefs = JSON.parse(localStorage.getItem('jobTrackerPreferences') || 'null');
+  const section = document.createElement('div');
+  section.style.marginTop = '20px';
+  const h = document.createElement('h3');
+  h.style.fontFamily = 'var(--font-heading)';
+  h.textContent = 'Recent Status Updates';
+  section.appendChild(h);
+
+  if (!raw.length) {
+    const p = document.createElement('div');
+    p.className = 'empty-card';
+    p.textContent = 'No recent status updates.';
+    section.appendChild(p);
+    container.appendChild(section);
+    return;
+  }
+
+  // show last 10 updates
+  const list = document.createElement('div');
+  list.style.display = 'flex';
+  list.style.flexDirection = 'column';
+  list.style.gap = '12px';
+  raw.slice(0,10).forEach(u => {
+    const job = (window.JOBS || []).find(j => j.id === u.jobId) || {title: u.jobId, company: ''};
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.alignItems = 'center';
+    row.style.border = '1px solid rgba(17,17,17,0.04)';
+    row.style.padding = '12px';
+    row.style.borderRadius = '8px';
+    const left = document.createElement('div');
+    left.innerHTML = `<div style="font-family:var(--font-heading)">${job.title}</div><div style="color:rgba(17,17,17,0.7)">${job.company}</div>`;
+    const right = document.createElement('div');
+    right.innerHTML = `<div class="status-badge ${statusBadgeClass(u.status)}" style="margin-bottom:6px">${u.status}</div><div style="color:rgba(17,17,17,0.65);font-size:12px">${new Date(u.date).toLocaleString()}</div>`;
+    row.appendChild(left);
+    row.appendChild(right);
+    list.appendChild(row);
+  });
+  section.appendChild(list);
+  container.appendChild(section);
+}
+// --- JT Test Checklist & Ship Lock (add to app.js) ---
+const JT_TEST_KEY = 'jobTrackerTestStatus';
+const JT_TEST_ITEMS = [
+  { id: 't1', label: 'Preferences persist after refresh', tip: 'Set prefs, refresh, confirm values remain' },
+  { id: 't2', label: 'Match score calculates correctly', tip: 'Set prefs and verify known job score' },
+  { id: 't3', label: '"Show only matches" toggle works', tip: 'Enable toggle and confirm filtered jobs' },
+  { id: 't4', label: 'Save job persists after refresh', tip: 'Save job, refresh, confirm in /saved' },
+  { id: 't5', label: 'Apply opens in new tab', tip: 'Click Apply on a job card' },
+  { id: 't6', label: 'Status update persists after refresh', tip: 'Change status and refresh' },
+  { id: 't7', label: 'Status filter works correctly', tip: 'Filter by status and verify results' },
+  { id: 't8', label: 'Digest generates top 10 by score', tip: 'Generate digest and check ordering' },
+  { id: 't9', label: 'Digest persists for the day', tip: 'Generate digest, refresh, verify it remains' },
+  { id: 't10', label: 'No console errors on main pages', tip: 'Open DevTools and navigate app' }
+];
+
+function loadTestStatus() {
+  try { return JSON.parse(localStorage.getItem(JT_TEST_KEY)) || {}; } catch { return {}; }
+}
+function saveTestStatus(map) {
+  localStorage.setItem(JT_TEST_KEY, JSON.stringify(map));
+}
+function resetTestStatus() {
+  localStorage.removeItem(JT_TEST_KEY);
+  // Also update UI if on test page (re-render)
+  if (location.pathname === '/jt/07-test') renderJtTestPage();
+}
+
+// count passed
+function jtCountPassed() {
+  const map = loadTestStatus();
+  return JT_TEST_ITEMS.reduce((acc,i,idx) => acc + (map[i.id] ? 1 : 0), 0);
+}
+function jtAllPassed() {
+  return jtCountPassed() === JT_TEST_ITEMS.length;
+}
+
+/* Navigation guard: prevent client-side navigation to /jt/08-ship if tests not complete.
+   If your router uses navigate(path), insert this check before proceeding to pushState.
+   Example integration (if you have a navigate function): */
+const originalNavigate = window.navigate || null;
+window.navigate = function(path, replace=false) {
+  if (path === '/jt/08-ship' && !jtAllPassed()) {
+    showToast('Complete all tests before shipping.');
+    // Optionally render the test page or keep user on current page
+    return;
+  }
+  if (typeof originalNavigate === 'function') return originalNavigate(path, replace);
+  // Fallback: use location
+  if (replace) history.replaceState({}, '', path);
+  else history.pushState({}, '', path);
+  const renderer = (routes && routes[path]) ? routes[path] : (window.render404 || (() => document.getElementById('route-root').innerHTML = ''));
+  if (renderer) renderRoute(renderer);
+};
+
+/* Page renderers to add to your routes map: */
+function renderJtTestPage() {
+  const wrap = document.createElement('section');
+  wrap.className = 'page';
+  wrap.appendChild(Object.assign(document.createElement('h1'), { textContent: 'Built-In Test Checklist' }));
+  const summary = document.createElement('div');
+  summary.className = 'jt-summary';
+  function updateSummary() {
+    const passed = jtCountPassed();
+    summary.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between">
+      <div><strong>Tests Passed: ${passed} / ${JT_TEST_ITEMS.length}</strong></div>
+      <div>${passed < JT_TEST_ITEMS.length ? '<span style="color:rgba(139,0,0,0.8)">Resolve all issues before shipping.</span>' : ''}</div>
+    </div>`;
+  }
+  wrap.appendChild(summary);
+
+  const list = document.createElement('ul');
+  list.className = 'jt-checklist';
+  const statusMap = loadTestStatus();
+  JT_TEST_ITEMS.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'jt-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!statusMap[item.id];
+    cb.id = item.id;
+    cb.addEventListener('change', () => {
+      const map = loadTestStatus();
+      map[item.id] = cb.checked;
+      saveTestStatus(map);
+      updateSummary();
+    });
+    const label = document.createElement('label');
+    label.htmlFor = item.id;
+    label.textContent = item.label;
+    label.title = item.tip;
+    li.appendChild(cb);
+    li.appendChild(label);
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+
+  const controls = document.createElement('div');
+  controls.style.marginTop = '16px';
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn btn-secondary';
+  resetBtn.textContent = 'Reset Test Status';
+  resetBtn.addEventListener('click', () => {
+    resetTestStatus();
+    renderJtTestPageReplace(wrap); // re-render inside same container
+  });
+  controls.appendChild(resetBtn);
+  wrap.appendChild(controls);
+
+  updateSummary();
+  // replace content into route root
+  const root = document.getElementById('route-root');
+  root.innerHTML = '';
+  root.appendChild(wrap);
+  root.focus();
+
+  function renderJtTestPageReplace(oldWrap) {
+    // quick re-render: call this function to re-render current page
+    const r = renderJtTestPage;
+    if (r) r();
+  }
+}
+
+function renderJtShipPage() {
+  const root = document.getElementById('route-root');
+  root.innerHTML = '';
+  const wrap = document.createElement('section');
+  wrap.className = 'page';
+  wrap.appendChild(Object.assign(document.createElement('h1'), { textContent: 'Ship' }));
+  if (!jtAllPassed()) {
+    const box = document.createElement('div');
+    box.className = 'empty-card';
+    box.textContent = 'Complete all tests before shipping.';
+    wrap.appendChild(box);
+    // Optionally include a call-to-action
+    const goto = document.createElement('button');
+    goto.className = 'btn btn-primary';
+    goto.textContent = 'Open Test Checklist';
+    goto.addEventListener('click', ()=> navigate('/jt/07-test'));
+    wrap.appendChild(goto);
+  } else {
+    const success = document.createElement('div');
+    success.className = 'empty-card';
+    success.textContent = 'All tests passed — ready to ship.';
+    wrap.appendChild(success);
+  }
+  root.appendChild(wrap);
+  root.focus();
+}
+
+/* Register routes (add these keys to your router routes map) */
+// routes['/jt/07-test'] = renderJtTestPage;
+// routes['/jt/08-ship'] = renderJtShipPage;
