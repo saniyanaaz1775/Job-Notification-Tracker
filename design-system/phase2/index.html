@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Job Notification App — Shell</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Shared Top Navigation Bar -->
+    <header class="topnav" role="banner">
+      <div class="topnav-inner container">
+        <div class="brand">Job Notification App</div>
+
+        <nav class="nav" aria-label="Primary">
+          <button class="hamburger" aria-controls="nav-panel" aria-expanded="false" aria-label="Open navigation">
+            ☰
+          </button>
+
+          <ul class="nav-list" role="menubar">
+            <li role="none"><a role="menuitem" href="/" data-link class="nav-link">Dashboard</a></li>
+            <li role="none"><a role="menuitem" href="/saved" data-link class="nav-link">Saved</a></li>
+            <li role="none"><a role="menuitem" href="/digest" data-link class="nav-link">Digest</a></li>
+            <li role="none"><a role="menuitem" href="/settings" data-link class="nav-link">Settings</a></li>
+            <li role="none"><a role="menuitem" href="/proof" data-link class="nav-link">Proof</a></li>
+          </ul>
+
+          <!-- Mobile panel -->
+          <div id="nav-panel" class="nav-panel" hidden>
+            <ul class="nav-panel-list">
+              <li><a href="/" data-link class="nav-link">Dashboard</a></li>
+              <li><a href="/saved" data-link class="nav-link">Saved</a></li>
+              <li><a href="/digest" data-link class="nav-link">Digest</a></li>
+              <li><a href="/settings" data-link class="nav-link">Settings</a></li>
+              <li><a href="/proof" data-link class="nav-link">Proof</a></li>
+            </ul>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Route content will render here -->
+    <main id="route-root" class="route-root container" role="main" tabindex="-1"></main>
+
+    <!-- Persistent proof footer -->
+    <footer class="proof container" role="contentinfo" aria-label="Proof checklist">
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> UI Built</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Logic Working</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Test Passed</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Deployed</div>
+    </footer>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
