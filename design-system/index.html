@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Job Notification App — Design System Demo</title>
+  <link rel="stylesheet" href="design-system.css">
+  <!-- In production, include the fonts chosen via a font provider; defaults above are system-first -->
+</head>
+<body>
+  <div class="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">Job Notification App</div>
+      <div class="progress">Step 2 / 5</div>
+      <div class="status-badge">In Progress</div>
+    </header>
+
+    <!-- Context Header -->
+    <section class="context-header container">
+      <h1>Refine notifications for engineering roles</h1>
+      <p>Set precise filters so you get only the roles that matter. Keep criteria specific and test with a sample query.</p>
+    </section>
+
+    <!-- Main area: Primary + Secondary -->
+    <main class="main container">
+      <div class="primary">
+        <div class="card">
+          <h3 style="font-family:var(--font-heading); font-size:var(--h3-size); margin-top:0;">Notification rule</h3>
+          <p>Rule name and scheduling live here. Keep the UX focused — no crowded controls.</p>
+
+          <label style="display:block; margin-top:var(--space-sm)">Rule name</label>
+          <input class="input" placeholder="Senior Backend Engineer alerts" />
+
+          <div style="margin-top:var(--space-md); display:flex; gap:12px;">
+            <button class="btn btn-primary">Save rule</button>
+            <button class="btn btn-secondary">Preview</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-family:var(--font-heading); font-size:var(--h3-size); margin-top:0;">Recent matches</h3>
+          <p style="margin:0;color:rgba(17,17,17,0.7)">No matches yet. Try relaxing the location filter.</p>
+          <div class="empty" style="margin-top:var(--space-sm)">
+            <div>No jobs matched your filters.</div>
+            <div class="cta"><button class="btn btn-primary">Adjust filters</button></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="secondary">
+        <div class="card">
+          <h4 style="font-family:var(--font-heading); margin:0 0 var(--space-sm) 0;">Step help</h4>
+          <p style="margin:0 0 var(--space-sm) 0; color:rgba(17,17,17,0.75)">Why this step matters and suggested values.</p>
+
+          <div style="margin-top:var(--space-sm)">
+            <label style="display:block; font-size:13px; color:rgba(17,17,17,0.7)">Copyable prompt</label>
+            <div style="border:1px solid var(--border-strong); padding:8px; border-radius:var(--radius); font-family:monospace; background:transparent;">
+              location:Remote AND role:backend
+              <button class="btn btn-secondary" style="float:right;">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4 style="font-family:var(--font-heading); margin:0 0 var(--space-sm) 0;">Status</h4>
+          <div class="success">All configuration saved locally</div>
+          <div style="height:var(--space-sm)"></div>
+          <div class="warning">Delivery cadence not configured</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Proof Footer (checklist) -->
+    <footer class="proof container">
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> UI Built</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Logic Working</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Test Passed</div>
+      <div class="check"><span class="checkbox" aria-hidden="true"></span> Deployed</div>
+    </footer>
+  </div>
+</body>
+</html>
