@@ -473,3 +473,250 @@ function updateCardScoreDOM(jobId, score) {
   badge.textContent = `${score}%`;
   badge.className = `match-badge ${badgeClassForScore(score)}`;
 }
+/* --- Digest engine & UI (drop into app.js) --- */
+
+/* Helper: safe preferences loader (uses existing PREF_KEY or jobTrackerPreferences) */
+function getPreferences() {
+  try {
+    return JSON.parse(localStorage.getItem('jobTrackerPreferences')) || null;
+  } catch {
+    return null;
+  }
+}
+
+/* Safe computeMatchScore fallback: if you already have one, this no-ops */
+if (typeof computeMatchScore !== 'function') {
+  function computeMatchScore(job, prefs) {
+    if (!prefs) return 0;
+    let score = 0;
+    const roleKeywords = (prefs.roleKeywords || '').split(',').map(k=>k.trim().toLowerCase()).filter(Boolean);
+    const userSkills = (prefs.skills || '').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+    const locs = (prefs.preferredLocations || []).map(s => s.toLowerCase());
+    const modes = (prefs.preferredMode || []).map(s => s.toLowerCase());
+    const exp = (prefs.experienceLevel || '').toLowerCase();
+    const title = (job.title||'').toLowerCase();
+    const desc = (job.description||'').toLowerCase();
+
+    if (roleKeywords.some(k => title.includes(k))) score += 25;
+    if (roleKeywords.some(k => desc.includes(k))) score += 15;
+    if (locs.length && locs.includes((job.location||'').toLowerCase())) score += 15;
+    if (modes.length && modes.includes((job.mode||'').toLowerCase())) score += 10;
+    if (exp && exp === (job.experience||'').toLowerCase()) score += 10;
+    if (userSkills.length && (job.skills||[]).some(s => userSkills.includes(s.toLowerCase()))) score += 15;
+    if (typeof job.postedDaysAgo === 'number' && job.postedDaysAgo <= 2) score += 5;
+    if ((job.source || '').toLowerCase() === 'linkedin') score += 5;
+    return Math.min(100, score);
+  }
+}
+
+/* Digest storage key helper */
+function digestKeyForDate(dateObj) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth()+1).padStart(2,'0');
+  const d = String(dateObj.getDate()).padStart(2,'0');
+  return `jobTrackerDigest_${y}-${m}-${d}`;
+}
+
+/* Generate or load today's digest (top 10 by matchScore desc, then postedDaysAgo asc) */
+function getOrCreateTodayDigest() {
+  const today = new Date();
+  const key = digestKeyForDate(today);
+  const existing = localStorage.getItem(key);
+  if (existing) return JSON.parse(existing);
+
+  const prefs = getPreferences();
+  if (!prefs) return { error: 'no-preferences' };
+
+  // Compute scores (deterministic)
+  const scored = window.JOBS.map(job => {
+    const score = computeMatchScore(job, prefs);
+    return Object.assign({}, job, { matchScore: score });
+  });
+
+  // Sort by score desc, postedDaysAgo asc
+  scored.sort((a,b) => {
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    return a.postedDaysAgo - b.postedDaysAgo;
+  });
+
+  const top10 = scored.slice(0,10);
+  const digest = {
+    date: key.slice('jobTrackerDigest_'.length),
+    items: top10
+  };
+  localStorage.setItem(key, JSON.stringify(digest));
+  return digest;
+}
+
+/* Render digest UI on /digest page (call from your page renderer) */
+function renderDigestSection(container) {
+  const prefs = getPreferences();
+  if (!prefs) {
+    const block = document.createElement('div');
+    block.className = 'empty-card';
+    block.textContent = 'Set preferences to generate a personalized digest.';
+    container.appendChild(block);
+    return;
+  }
+
+  const controls = document.createElement('div');
+  controls.style.display = 'flex';
+  controls.style.gap = '12px';
+  controls.style.alignItems = 'center';
+  controls.style.marginBottom = '16px';
+
+  const genBtn = document.createElement('button');
+  genBtn.className = 'btn btn-primary';
+  genBtn.textContent = "Generate Today's 9AM Digest (Simulated)";
+  controls.appendChild(genBtn);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn btn-secondary';
+  copyBtn.textContent = 'Copy Digest to Clipboard';
+  copyBtn.disabled = true;
+  controls.appendChild(copyBtn);
+
+  const emailBtn = document.createElement('button');
+  emailBtn.className = 'btn btn-secondary';
+  emailBtn.textContent = 'Create Email Draft';
+  emailBtn.disabled = true;
+  controls.appendChild(emailBtn);
+
+  const note = document.createElement('div');
+  note.style.marginTop = '8px';
+  note.style.color = 'rgba(17,17,17,0.7)';
+  note.style.fontSize = '13px';
+  note.textContent = 'Demo Mode: Daily 9AM trigger simulated manually.';
+  container.appendChild(controls);
+  container.appendChild(note);
+
+  const out = document.createElement('div');
+  out.className = 'digest-output';
+  out.style.marginTop = '20px';
+  container.appendChild(out);
+
+  function renderDigest(digest) {
+    out.innerHTML = '';
+    if (!digest || !digest.items || digest.items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-card';
+      empty.textContent = "No matching roles today. Check again tomorrow.";
+      out.appendChild(empty);
+      copyBtn.disabled = true;
+      emailBtn.disabled = true;
+      return;
+    }
+
+    // email-style centered white card
+    const card = document.createElement('div');
+    card.style.background = '#ffffff';
+    card.style.border = '1px solid rgba(17,17,17,0.06)';
+    card.style.borderRadius = '8px';
+    card.style.padding = '24px';
+    card.style.maxWidth = '720px';
+    card.style.margin = '0 auto';
+    card.style.color = 'var(--color-text)';
+
+    const h = document.createElement('h2');
+    h.style.fontFamily = 'var(--font-heading)';
+    h.textContent = "Top 10 Jobs For You — 9AM Digest";
+    card.appendChild(h);
+
+    const d = document.createElement('div');
+    d.style.color = 'rgba(17,17,17,0.7)';
+    d.style.marginBottom = '16px';
+    const date = new Date(digest.date).toLocaleDateString();
+    d.textContent = date;
+    card.appendChild(d);
+
+    digest.items.forEach(item => {
+      const row = document.createElement('div');
+      row.style.borderTop = '1px solid rgba(17,17,17,0.04)';
+      row.style.padding = '12px 0';
+      const title = document.createElement('div');
+      title.style.fontFamily = 'var(--font-heading)';
+      title.style.fontSize = '16px';
+      title.textContent = item.title;
+      row.appendChild(title);
+      const meta = document.createElement('div');
+      meta.style.color = 'rgba(17,17,17,0.7)';
+      meta.style.fontSize = '14px';
+      meta.textContent = `${item.company} • ${item.location} • ${item.experience} • Match ${item.matchScore}%`;
+      row.appendChild(meta);
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-primary';
+      btn.style.marginTop = '8px';
+      btn.textContent = 'Apply';
+      btn.addEventListener('click', ()=> window.open(item.applyUrl, '_blank'));
+      row.appendChild(btn);
+      card.appendChild(row);
+    });
+
+    const footer = document.createElement('div');
+    footer.style.borderTop = '1px solid rgba(17,17,17,0.04)';
+    footer.style.marginTop = '16px';
+    footer.style.paddingTop = '12px';
+    footer.style.color = 'rgba(17,17,17,0.7)';
+    footer.textContent = 'This digest was generated based on your preferences.';
+    card.appendChild(footer);
+
+    out.appendChild(card);
+    copyBtn.disabled = false;
+    emailBtn.disabled = false;
+  }
+
+  // handle generate/load
+  genBtn.addEventListener('click', () => {
+    const digest = getOrCreateTodayDigest();
+    if (digest && digest.error === 'no-preferences') {
+      out.innerHTML = '';
+      const block = document.createElement('div');
+      block.className = 'empty-card';
+      block.textContent = 'Set preferences to generate a personalized digest.';
+      out.appendChild(block);
+      copyBtn.disabled = true;
+      emailBtn.disabled = true;
+      return;
+    }
+    renderDigest(digest);
+  });
+
+  // copy plain-text
+  copyBtn.addEventListener('click', async () => {
+    const key = digestKeyForDate(new Date());
+    const digest = JSON.parse(localStorage.getItem(key) || '{}');
+    if (!digest || !digest.items || digest.items.length === 0) return;
+    let body = `Top 10 Jobs — ${digest.date}\n\n`;
+    digest.items.forEach((it, i) => {
+      body += `${i+1}. ${it.title} — ${it.company} (${it.location})\n   Experience: ${it.experience} • Match ${it.matchScore}%\n   Apply: ${it.applyUrl}\n\n`;
+    });
+    await navigator.clipboard.writeText(body);
+    copyBtn.textContent = 'Copied';
+    setTimeout(()=> copyBtn.textContent = 'Copy Digest to Clipboard', 1500);
+  });
+
+  // create mailto draft
+  emailBtn.addEventListener('click', () => {
+    const key = digestKeyForDate(new Date());
+    const digest = JSON.parse(localStorage.getItem(key) || '{}');
+    if (!digest || !digest.items || digest.items.length === 0) return;
+    let body = `Top 10 Jobs — ${digest.date}\n\n`;
+    digest.items.forEach((it, i) => {
+      body += `${i+1}. ${it.title} — ${it.company} (${it.location})\nExperience: ${it.experience} • Match ${it.matchScore}%\nApply: ${it.applyUrl}\n\n`;
+    });
+    const subject = encodeURIComponent('My 9AM Job Digest');
+    const mail = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+    window.location.href = mail;
+  });
+
+  // If a digest already exists on page load, render immediately
+  const todayKey = digestKeyForDate(new Date());
+  const existing = localStorage.getItem(todayKey);
+  if (existing) {
+    renderDigest(JSON.parse(existing));
+  }
+}
+
+/* To integrate: call renderDigestSection(container) from your /digest page renderer,
+   for example inside pageDigest() after the basic header/subtext have been appended.
+*/

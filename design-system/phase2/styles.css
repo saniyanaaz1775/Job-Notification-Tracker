@@ -59,3 +59,7 @@
   .job-card { padding:12px; }
   .filter-bar .input, .filter-bar .select { min-width:140px; }
 }
+/* Digest email card styling (add to styles.css) */
+.digest-output .digest-card { max-width:720px; margin:0 auto; background:#fff; border:1px solid rgba(17,17,17,0.06); border-radius:8px; padding:24px; }
+.digest-output h2 { font-family:var(--font-heading); margin:0 0 8px 0; }
+.digest-output .empty-card { max-width:720px; margin:0 auto; }
